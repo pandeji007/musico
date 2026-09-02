@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tuneflow/features/music/domain/entities/track.dart';
+import 'package:tuneflow/features/music/presentation/providers/audio_player_provider.dart';
+import 'package:tuneflow/features/music/presentation/widgets/mini_player.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../providers/music_provider.dart';
@@ -105,6 +108,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: const MiniPlayer(),
     );
   }
 
@@ -181,28 +185,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         final track = state.tracks[index];
 
         return _TrackCard(
-          title: track.name,
-          artist: track.artistName,
-          imageUrl: track.image,
+          track: track,
+          playlist: state.tracks,
         );
       },
     );
   }
 }
 
-class _TrackCard extends StatelessWidget {
-  final String title;
-  final String artist;
-  final String imageUrl;
+class _TrackCard extends ConsumerWidget {
+  final Track track;
+  final List<Track> playlist;
 
   const _TrackCard({
-    required this.title,
-    required this.artist,
-    required this.imageUrl,
+    required this.track,
+    required this.playlist,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -214,7 +215,7 @@ class _TrackCard extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: Image.network(
-              imageUrl,
+              track.image,
               width: 64,
               height: 64,
               fit: BoxFit.cover,
@@ -239,7 +240,7 @@ class _TrackCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  track.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -252,7 +253,7 @@ class _TrackCard extends StatelessWidget {
                 const SizedBox(height: 5),
 
                 Text(
-                  artist,
+                  track.artistName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -264,10 +265,20 @@ class _TrackCard extends StatelessWidget {
             ),
           ),
 
-          const Icon(
-            Icons.play_arrow_rounded,
-            color: AppColors.primary,
-            size: 30,
+          IconButton(
+            onPressed: () {
+              ref
+                  .read(audioPlayerProvider.notifier)
+                  .playTrack(
+                    track,
+                    playlist: playlist,
+                  );
+            },
+            icon: const Icon(
+              Icons.play_arrow_rounded,
+              color: AppColors.primary,
+              size: 30,
+            ),
           ),
         ],
       ),
