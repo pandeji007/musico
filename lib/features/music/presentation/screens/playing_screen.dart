@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,7 +12,6 @@ class NowPlayingScreen extends ConsumerWidget {
   String _formatDuration(Duration duration) {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds.remainder(60);
-
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 
@@ -20,11 +21,7 @@ class NowPlayingScreen extends ConsumerWidget {
     final track = playerState.currentTrack;
 
     if (track == null) {
-      return const Scaffold(
-        body: Center(
-          child: Text('No song playing'),
-        ),
-      );
+      return const Scaffold(body: Center(child: Text('No song playing')));
     }
 
     final duration = playerState.duration;
@@ -39,9 +36,12 @@ class NowPlayingScreen extends ConsumerWidget {
         .toDouble();
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: const Text('Now Playing'),
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.keyboard_arrow_down_rounded),
           onPressed: () {
@@ -49,196 +49,192 @@ class NowPlayingScreen extends ConsumerWidget {
           },
         ),
       ),
-
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 24,
-          ),
-          child: Column(
-            children: [
-              const Spacer(),
-
-              // Artwork
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: Image.network(
-                    track.image,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) {
-                      return Container(
-                        color: AppColors.surface,
-                        child: const Icon(
-                          Icons.music_note_rounded,
-                          color: AppColors.primary,
-                          size: 100,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Song title
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  track.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: AppColors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Artist
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  track.artistName,
-                  style: TextStyle(
-                    color: AppColors.white.withValues(alpha: 0.65),
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 30),
-
-              // Progress slider
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: AppColors.primary,
-                  inactiveTrackColor:
-                  AppColors.white.withValues(alpha: 0.2),
-                  thumbColor: AppColors.primary,
-                  overlayColor:
-                  AppColors.primary.withValues(alpha: 0.15),
-                  trackHeight: 3,
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 6,
-                  ),
-                ),
-                child: Slider(
-                  min: 0,
-                  max: maxSeconds,
-                  value: currentSeconds,
-                  onChanged: (value) {
-                    ref
-                        .read(audioPlayerProvider.notifier)
-                        .seek(
-                      Duration(
-                        milliseconds: (value * 1000).round(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-
-              // Time
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  mainAxisAlignment:
-                  MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      _formatDuration(position),
-                      style: TextStyle(
-                        color:
-                        AppColors.white.withValues(alpha: 0.6),
-                        fontSize: 12,
-                      ),
-                    ),
-                    Text(
-                      _formatDuration(duration),
-                      style: TextStyle(
-                        color:
-                        AppColors.white.withValues(alpha: 0.6),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Controls
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: Stack(
+        children: [
+          // Background layer: blurred track image + primary color overlay
+          Positioned.fill(child: _buildGlassBackground(track.image)),
+          // Foreground content
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
                 children: [
-                  IconButton(
-                    onPressed: () {
-                      ref
-                          .read(audioPlayerProvider.notifier)
-                          .previous();
-                    },
-                    icon: const Icon(
-                      Icons.skip_previous_rounded,
-                      color: AppColors.white,
-                      size: 42,
-                    ),
-                  ),
-
-                  const SizedBox(width: 20),
-
-                  Container(
-                    width: 68,
-                    height: 68,
-                    decoration: const BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      onPressed: () {
-                        ref
-                            .read(
-                          audioPlayerProvider.notifier,
-                        )
-                            .playPause();
-                      },
-                      icon: Icon(
-                        playerState.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: AppColors.background,
-                        size: 38,
+                  const Spacer(),
+                  // Artwork
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: Image.network(
+                        track.image,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) {
+                          return Container(
+                            color: AppColors.surface,
+                            child: const Icon(
+                              Icons.music_note_rounded,
+                              color: AppColors.primary,
+                              size: 100,
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ),
-
-                  const SizedBox(width: 20),
-
-                  IconButton(
-                    onPressed: () {
-                      ref
-                          .read(audioPlayerProvider.notifier)
-                          .next();
-                    },
-                    icon: const Icon(
-                      Icons.skip_next_rounded,
-                      color: AppColors.white,
-                      size: 42,
+                  const SizedBox(height: 32),
+                  // Song title
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      track.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  // Artist
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      track.artistName,
+                      style: TextStyle(
+                        color: AppColors.white.withValues(alpha: 0.65),
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  // Progress slider
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: AppColors.primary,
+                      inactiveTrackColor: AppColors.white.withValues(
+                        alpha: 0.2,
+                      ),
+                      thumbColor: AppColors.primary,
+                      overlayColor: AppColors.primary.withValues(alpha: 0.15),
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 6,
+                      ),
+                    ),
+                    child: Slider(
+                      min: 0,
+                      max: maxSeconds,
+                      value: currentSeconds,
+                      onChanged: (value) {
+                        ref
+                            .read(audioPlayerProvider.notifier)
+                            .seek(
+                              Duration(milliseconds: (value * 1000).round()),
+                            );
+                      },
+                    ),
+                  ),
+                  // Time
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _formatDuration(position),
+                          style: TextStyle(
+                            color: AppColors.white.withValues(alpha: 0.6),
+                            fontSize: 12,
+                          ),
+                        ),
+                        Text(
+                          _formatDuration(duration),
+                          style: TextStyle(
+                            color: AppColors.white.withValues(alpha: 0.6),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  // Controls
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          ref.read(audioPlayerProvider.notifier).previous();
+                        },
+                        icon: const Icon(
+                          Icons.skip_previous_rounded,
+                          color: AppColors.white,
+                          size: 42,
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Container(
+                        width: 68,
+                        height: 68,
+                        decoration: const BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          onPressed: () {
+                            ref.read(audioPlayerProvider.notifier).playPause();
+                          },
+                          icon: Icon(
+                            playerState.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: AppColors.background,
+                            size: 38,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      IconButton(
+                        onPressed: () {
+                          ref.read(audioPlayerProvider.notifier).next();
+                        },
+                        icon: const Icon(
+                          Icons.skip_next_rounded,
+                          color: AppColors.white,
+                          size: 42,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-              const Spacer(),
-            ],
+  // Helper to build the blurred background with primary color overlay
+  Widget _buildGlassBackground(String imageUrl) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Blurred track image
+        ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: AppColors.surface),
           ),
         ),
-      ),
+        // Semi-transparent primary color overlay
+        Container(color: AppColors.surface.withValues(alpha: 0.3)),
+      ],
     );
   }
 }

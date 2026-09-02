@@ -8,10 +8,7 @@ import '../providers/audio_player_provider.dart';
 class MiniPlayer extends ConsumerWidget {
   final VoidCallback? onTap;
 
-  const MiniPlayer({
-    super.key,
-    this.onTap,
-  });
+  const MiniPlayer({super.key, this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -24,99 +21,118 @@ class MiniPlayer extends ConsumerWidget {
     }
 
     return GestureDetector(
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const NowPlayingScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const NowPlayingScreen()),
             );
           },
       child: SafeArea(
         top: false,
-        child: Container(
-          height: 76,
-          padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            border: Border(
-              top: BorderSide(
-                color: AppColors.primary,
-                width: 0.5,
-              ),
-            ),
-          ),
-          child: Row(
+        child: SizedBox(
+          height: 80,
+          child: Stack(
             children: [
-              // Artwork
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  track.image,
-                  width: 58,
-                  height: 58,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) {
-                    return Container(
-                      width: 58,
-                      height: 58,
-                      color: AppColors.background,
-                      child: const Icon(
-                        Icons.music_note,
-                        color: AppColors.primary,
-                      ),
-                    );
-                  },
+              // Progress bar
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                  child: LinearProgressIndicator(
+                    minHeight: 3,
+                    value: playerState.duration.inMilliseconds > 0
+                        ? (playerState.position.inMilliseconds /
+                                  playerState.duration.inMilliseconds)
+                              .clamp(0.0, 1.0)
+                        : 0.0,
+                    backgroundColor: AppColors.white.withValues(alpha: 0.15),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
+                    ),
+                  ),
                 ),
               ),
 
-              const SizedBox(width: 12),
-
-              // Track information
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              // Main content
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                child: Row(
                   children: [
-                    Text(
-                      track.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                    // Artwork
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        track.image,
+                        width: 58,
+                        height: 58,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) {
+                          return Container(
+                            width: 58,
+                            height: 58,
+                            color: AppColors.background,
+                            child: const Icon(
+                              Icons.music_note,
+                              color: AppColors.primary,
+                            ),
+                          );
+                        },
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      track.artistName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.white.withValues(alpha: 0.65),
-                        fontSize: 13,
+
+                    const SizedBox(width: 12),
+
+                    // Track information
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            track.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            track.artistName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.white.withValues(alpha: 0.65),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Play / Pause
+                    IconButton(
+                      onPressed: () {
+                        ref.read(audioPlayerProvider.notifier).playPause();
+                      },
+                      icon: Icon(
+                        playerState.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: AppColors.primary,
+                        size: 32,
                       ),
                     ),
                   ],
-                ),
-              ),
-
-              // Play / Pause
-              IconButton(
-                onPressed: () {
-                  ref.read(audioPlayerProvider.notifier).playPause();
-                },
-                icon: Icon(
-                  playerState.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  color: AppColors.primary,
-                  size: 32,
                 ),
               ),
             ],
