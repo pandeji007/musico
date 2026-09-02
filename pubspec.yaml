@@ -39,6 +39,7 @@ dependencies:
   just_audio: ^0.10.6
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  flutter_native_splash: ^2.4.8
 
 dev_dependencies:
   flutter_test:
@@ -92,3 +93,18 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_native_splash:
+  color: "#000000"                # Background color (white in this example)
+  image: assets/nameicon.png       # Path to your splash image
+  # Android 12+ (API 31+) specific settings
+  android_12:
+    image: assets/nameicon.png
+    color: "#000000"
+    icon_background_color: "#000000"
+  # iOS content mode (how image fits)
+  ios_content_mode: scaleAspectFit   # Options: scaleAspectFit, scaleAspectFill, center, etc.
+  # Android gravity (image positioning)
+  android_gravity: center            # Options: center, fill, center_horizontal, etc.
+  # Optional: dark mode version
+  # image_dark: assets/splash_dark.png
+  # color_dark: "#000000"
