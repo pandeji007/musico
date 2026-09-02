@@ -4,7 +4,6 @@ import 'package:tuneflow/core/constants/app_config.dart';
 import 'package:tuneflow/features/music/data/datasources/music_local_data_source.dart';
 import 'package:tuneflow/features/music/data/datasources/music_source.dart';
 import 'package:tuneflow/features/music/domain/repositories/music_repository_impl.dart';
-import 'dart:async';
 import '../../../../core/network/dio_client.dart';
 import '../../domain/entities/track.dart';
 import '../../domain/repositories/music_repository.dart';
@@ -72,100 +71,26 @@ class MusicState {
 class MusicNotifier extends StateNotifier<MusicState> {
   final MusicRepository repository;
 
-  Timer? _searchDebounceTimer;
-
-  int _searchRequestId = 0;
-
-  bool _hasLoadedInitialData = false;
-
   MusicNotifier({required this.repository}) : super(const MusicState());
 
-  Future<void> loadTracks({bool forceReload = false}) async {
-    if (state.isLoading) {
-      return;
-    }
-
-    if (_hasLoadedInitialData && !forceReload) {
-      return;
-    }
-
-    _hasLoadedInitialData = true;
+  Future<void> loadTracks() async {
+    if (state.isLoading) return;
 
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
       final tracks = await repository.getTracks(offset: 0);
 
+
       state = state.copyWith(
         tracks: tracks,
         isLoading: false,
-        isLoadingMore: false,
         hasMore: tracks.length >= ApiConstants.pageSize,
-        searchQuery: '',
         clearError: true,
       );
     } catch (e) {
-      _hasLoadedInitialData = false;
-
       state = state.copyWith(isLoading: false, errorMessage: e.toString());
     }
-  }
-
-  void search(String query) {
-    _searchDebounceTimer?.cancel();
-
-    final trimmedQuery = query.trim();
-
-    // User cleared the search
-    if (trimmedQuery.isEmpty) {
-      _searchRequestId++;
-
-      state = const MusicState();
-
-      loadTracks(forceReload: true);
-
-      return;
-    }
-
-    // Show loading state immediately
-    state = state.copyWith(
-      tracks: [],
-      isLoading: true,
-      isLoadingMore: false,
-      hasMore: true,
-      searchQuery: trimmedQuery,
-      clearError: true,
-    );
-
-    final int requestId = ++_searchRequestId;
-
-    _searchDebounceTimer = Timer(const Duration(milliseconds: 500), () async {
-      try {
-        final tracks = await repository.searchTracks(
-          query: trimmedQuery,
-          offset: 0,
-        );
-
-        // Ignore old API response
-        if (requestId != _searchRequestId) {
-          return;
-        }
-
-        state = state.copyWith(
-          tracks: tracks,
-          isLoading: false,
-          hasMore: tracks.length >= ApiConstants.pageSize,
-          clearError: true,
-        );
-      } catch (e) {
-        // Ignore old API response
-        if (requestId != _searchRequestId) {
-          return;
-        }
-
-        state = state.copyWith(isLoading: false, errorMessage: e.toString());
-      }
-    });
   }
 
   Future<void> loadMore() async {
@@ -196,9 +121,38 @@ class MusicNotifier extends StateNotifier<MusicState> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchDebounceTimer?.cancel();
-    super.dispose();
+  Future<void> search(String query) async {
+    final trimmedQuery = query.trim();
+
+    if (trimmedQuery.isEmpty) {
+      state = const MusicState();
+      await loadTracks();
+      return;
+    }
+
+    state = state.copyWith(
+      tracks: [],
+      isLoading: true,
+      isLoadingMore: false,
+      hasMore: true,
+      searchQuery: trimmedQuery,
+      clearError: true,
+    );
+
+    try {
+      final tracks = await repository.searchTracks(
+        query: trimmedQuery,
+        offset: 0,
+      );
+
+      state = state.copyWith(
+        tracks: tracks,
+        isLoading: false,
+        hasMore: tracks.length >= ApiConstants.pageSize,
+        clearError: true,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.toString());
+    }
   }
 }

@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:just_audio/just_audio.dart';
+import '../../data/datasources/music_local_data_source.dart';
 import '../../domain/entities/track.dart';
 
 final audioPlayerProvider =
@@ -52,26 +53,41 @@ class AudioPlayerState {
 }
 
 class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
-  final AudioPlayer _player = AudioPlayer();
+  AudioPlayer? _player;
+  final MusicLocalDataSource _localDataSource = MusicLocalDataSource();
 
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
 
   AudioPlayerNotifier() : super(const AudioPlayerState()) {
-    _listenToPlayer();
+    if (_isAudioSupported) {
+      _player = AudioPlayer();
+      _listenToPlayer();
+    }
+  }
+
+  static bool get _isAudioSupported {
+    if (kIsWeb) return true;
+
+    return defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS;
   }
 
   void _listenToPlayer() {
-    _positionSubscription = _player.positionStream.listen((position) {
+    final player = _player;
+    if (player == null) return;
+
+    _positionSubscription = player.positionStream.listen((position) {
       state = state.copyWith(position: position);
     });
 
-    _durationSubscription = _player.durationStream.listen((duration) {
+    _durationSubscription = player.durationStream.listen((duration) {
       state = state.copyWith(duration: duration ?? Duration.zero);
     });
 
-    _playerStateSubscription = _player.playerStateStream.listen((playerState) {
+    _playerStateSubscription = player.playerStateStream.listen((playerState) {
       state = state.copyWith(isPlaying: playerState.playing);
 
       if (playerState.processingState == ProcessingState.completed) {
@@ -82,11 +98,12 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
   Future<void> playTrack(Track track, {List<Track>? playlist}) async {
     if (track.audio.isEmpty) {
-      debugPrint('Audio URL is empty for: ${track.name}');
       return;
     }
 
     try {
+      await _localDataSource.init();
+
       final tracks = playlist ?? state.tracks;
 
       int index = tracks.indexWhere((item) => item.id == track.id);
@@ -105,17 +122,34 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
         duration: Duration.zero,
       );
 
-      await _player.stop();
+      final player = _player;
+      if (player == null) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
 
-      await _player.setUrl(track.audio);
+      await player.stop();
 
-      await _player.play();
+      final audio =
+          _localDataSource.getCachedAudio(track.audio) ??
+          await _localDataSource.cacheAudio(track.audio);
+
+      if (audio != null) {
+        try {
+          await player.setAudioSource(_CachedAudioSource(audio));
+          await player.play();
+        } catch (_) {
+          await player.setUrl(track.audio);
+          await player.play();
+        }
+      } else {
+        await player.setUrl(track.audio);
+        await player.play();
+      }
 
       state = state.copyWith(isLoading: false, isPlaying: true);
     } catch (e) {
       state = state.copyWith(isLoading: false, isPlaying: false);
-
-      debugPrint('AUDIO PLAYER ERROR: $e');
     }
   }
 
@@ -125,13 +159,16 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     }
 
     try {
-      if (_player.playing) {
-        await _player.pause();
+      final player = _player;
+      if (player == null) return;
+
+      if (player.playing) {
+        await player.pause();
       } else {
-        await _player.play();
+        await player.play();
       }
     } catch (e) {
-      debugPrint('PLAY/PAUSE ERROR: $e');
+      // Error handling can be added here if needed
     }
   }
 
@@ -157,7 +194,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     // If the song has played for more than 3 seconds,
     // pressing previous restarts the current song.
     if (state.position.inSeconds > 3) {
-      await _player.seek(Duration.zero);
+      await _player?.seek(Duration.zero);
       return;
     }
 
@@ -186,11 +223,11 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   }
 
   Future<void> seek(Duration position) async {
-    await _player.seek(position);
+    await _player?.seek(position);
   }
 
   Future<void> stop() async {
-    await _player.stop();
+    await _player?.stop();
 
     state = state.copyWith(isPlaying: false, position: Duration.zero);
   }
@@ -201,8 +238,28 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     _durationSubscription?.cancel();
     _playerStateSubscription?.cancel();
 
-    _player.dispose();
+    _player?.dispose();
 
     super.dispose();
+  }
+}
+
+class _CachedAudioSource extends StreamAudioSource {
+  final Uint8List audio;
+
+  _CachedAudioSource(this.audio);
+
+  @override
+  Future<StreamAudioResponse> request([int? start, int? end]) async {
+    final rangeStart = start ?? 0;
+    final rangeEnd = end ?? audio.length;
+
+    return StreamAudioResponse(
+      contentType: 'audio/mpeg',
+      stream: Stream.value(audio.sublist(rangeStart, rangeEnd)),
+      contentLength: rangeEnd - rangeStart,
+      offset: rangeStart,
+      sourceLength: audio.length,
+    );
   }
 }

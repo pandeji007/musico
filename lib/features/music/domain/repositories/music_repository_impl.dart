@@ -1,5 +1,5 @@
-import 'package:tuneflow/features/music/data/datasources/music_local_data_source.dart';
 import 'package:tuneflow/features/music/data/datasources/music_source.dart';
+import 'package:tuneflow/features/music/data/datasources/music_local_data_source.dart';
 import '../../domain/entities/track.dart';
 import '../../domain/repositories/music_repository.dart';
 
@@ -19,23 +19,18 @@ class MusicRepositoryImpl implements MusicRepository {
     try {
       final tracks = await remoteDataSource.getTracks(offset: offset);
 
-      if (tracks.isNotEmpty) {
-        if (offset == 0) {
+      if (offset == 0 && tracks.isNotEmpty) {
+        try {
           await localDataSource.cacheTracks(tracks);
-        } else {
-          final cachedTracks = localDataSource.getCachedTracks();
-
-          await localDataSource.cacheTracks([...cachedTracks, ...tracks]);
+        } catch (e) {
+          // Handle caching error, but don't fail the entire operation
         }
       }
 
-      return tracks;
-    } catch (e) {
-      // Use cached tracks when the API is unavailable.
-      final cachedTracks = localDataSource.getCachedTracks();
-
-      if (offset < cachedTracks.length) {
-        return cachedTracks.skip(offset).take(20).toList();
+      return tracks.map<Track>((track) => track).toList();
+    } catch (_) {
+      if (offset == 0) {
+        return localDataSource.getCachedTracks();
       }
 
       rethrow;
@@ -47,6 +42,26 @@ class MusicRepositoryImpl implements MusicRepository {
     required String query,
     int offset = 0,
   }) async {
-    return remoteDataSource.searchTracks(query: query, offset: offset);
+    await localDataSource.init();
+
+    try {
+      final tracks = await remoteDataSource.searchTracks(
+        query: query,
+        offset: offset,
+      );
+
+      return tracks.map<Track>((track) => track).toList();
+    } catch (_) {
+      if (offset != 0) {
+        rethrow;
+      }
+
+      final normalizedQuery = query.toLowerCase();
+      return localDataSource.getCachedTracks().where((track) {
+        return track.name.toLowerCase().contains(normalizedQuery) ||
+            track.artistName.toLowerCase().contains(normalizedQuery) ||
+            track.albumName.toLowerCase().contains(normalizedQuery);
+      }).toList();
+    }
   }
 }

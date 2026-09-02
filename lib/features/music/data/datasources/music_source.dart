@@ -19,6 +19,7 @@ class MusicRemoteDataSource {
         },
       );
 
+
       final results = response.data['results'];
 
       if (results is! List) {
@@ -48,6 +49,7 @@ class MusicRemoteDataSource {
           'offset': offset,
         },
       );
+
 
       final results = response.data['results'];
 

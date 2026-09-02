@@ -13,31 +13,18 @@ class TrackModel extends Track {
   });
 
   factory TrackModel.fromJson(Map<String, dynamic> json) {
+    final id = int.tryParse(json['id'].toString()) ?? 0;
+    final duration = int.tryParse(json['duration'].toString()) ?? 0;
+
     return TrackModel(
-      id: _parseInt(json['id']),
+      id: id,
       name: json['name']?.toString() ?? '',
-      duration: _parseInt(json['duration']),
+      duration: duration,
       artistName: json['artist_name']?.toString() ?? '',
       albumName: json['album_name']?.toString() ?? '',
       albumImage: json['album_image']?.toString() ?? '',
       image: json['image']?.toString() ?? '',
       audio: json['audio']?.toString() ?? '',
     );
-  }
-
-  static int _parseInt(dynamic value) {
-    if (value is int) {
-      return value;
-    }
-
-    if (value is double) {
-      return value.toInt();
-    }
-
-    if (value is String) {
-      return int.tryParse(value) ?? 0;
-    }
-
-    return 0;
   }
 }
