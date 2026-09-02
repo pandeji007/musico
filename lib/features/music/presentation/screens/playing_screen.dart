@@ -38,7 +38,6 @@ class NowPlayingScreen extends ConsumerWidget {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Now Playing'),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -52,7 +51,9 @@ class NowPlayingScreen extends ConsumerWidget {
       body: Stack(
         children: [
           // Background layer: blurred track image + primary color overlay
-          Positioned.fill(child: _buildGlassBackground(track.image)),
+          Positioned.fill(
+            child: RepaintBoundary(child: _buildGlassBackground(track.image)),
+          ),
           // Foreground content
           SafeArea(
             child: Padding(
@@ -67,8 +68,9 @@ class NowPlayingScreen extends ConsumerWidget {
                       aspectRatio: 1,
                       child: Image.network(
                         track.image,
+                        cacheWidth: 600,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) {
+                        errorBuilder: (_, _, _) {
                           return Container(
                             color: AppColors.surface,
                             child: const Icon(
@@ -229,7 +231,7 @@ class NowPlayingScreen extends ConsumerWidget {
           child: Image.network(
             imageUrl,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: AppColors.surface),
+            errorBuilder: (_, _, _) => Container(color: AppColors.surface),
           ),
         ),
         // Semi-transparent primary color overlay

@@ -17,7 +17,8 @@ final musicRemoteDataSourceProvider = Provider<MusicRemoteDataSource>((ref) {
 });
 
 final musicLocalDataSourceProvider = Provider<MusicLocalDataSource>((ref) {
-  return MusicLocalDataSource();
+  final dioClient = ref.watch(dioClientProvider);
+  return MusicLocalDataSource(dio: dioClient.dio);
 });
 
 final musicRepositoryProvider = Provider<MusicRepository>((ref) {

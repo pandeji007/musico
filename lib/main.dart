@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/adapters.dart';
@@ -9,6 +11,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Hive.initFlutter();
+  
+  // Open boxes at startup for better performance
+  await Hive.openBox<String>('music_cache');
+  await Hive.openBox<Uint8List>('music_audio_cache');
 
   runApp(const ProviderScope(child: TuneFlowApp()));
 }

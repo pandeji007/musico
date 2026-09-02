@@ -72,8 +72,10 @@ class MiniPlayer extends ConsumerWidget {
                         track.image,
                         width: 58,
                         height: 58,
+                        cacheWidth: 120,
+                        cacheHeight: 120,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) {
+                        errorBuilder: (_, _, _) {
                           return Container(
                             width: 58,
                             height: 58,

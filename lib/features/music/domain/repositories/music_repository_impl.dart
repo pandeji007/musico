@@ -14,8 +14,6 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Track>> getTracks({int offset = 0}) async {
-    await localDataSource.init();
-
     try {
       final tracks = await remoteDataSource.getTracks(offset: offset);
 
@@ -42,8 +40,6 @@ class MusicRepositoryImpl implements MusicRepository {
     required String query,
     int offset = 0,
   }) async {
-    await localDataSource.init();
-
     try {
       final tracks = await remoteDataSource.searchTracks(
         query: query,

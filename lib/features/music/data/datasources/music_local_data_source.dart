@@ -11,7 +11,12 @@ class MusicLocalDataSource {
   static const String _audioBoxName = 'music_audio_cache';
   static const String _tracksKey = 'tracks';
 
+  final Dio? dio;
+
+  MusicLocalDataSource({this.dio});
+
   Future<void> init() async {
+    // Boxes are now opened in main.dart for better performance
     if (!Hive.isBoxOpen(_boxName)) {
       await Hive.openBox<String>(_boxName);
     }
@@ -63,7 +68,13 @@ class MusicLocalDataSource {
 
   Future<Uint8List?> cacheAudio(String audioUrl) async {
     try {
-      final response = await Dio().get<List<int>>(
+      final existing = getCachedAudio(audioUrl);
+      if (existing != null) {
+        return existing;
+      }
+
+      final client = dio ?? Dio();
+      final response = await client.get<List<int>>(
         audioUrl,
         options: Options(responseType: ResponseType.bytes),
       );

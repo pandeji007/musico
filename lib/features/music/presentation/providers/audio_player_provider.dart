@@ -2,12 +2,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:tuneflow/features/music/presentation/providers/music_provider.dart';
 import '../../data/datasources/music_local_data_source.dart';
 import '../../domain/entities/track.dart';
 
 final audioPlayerProvider =
     StateNotifierProvider<AudioPlayerNotifier, AudioPlayerState>((ref) {
-      return AudioPlayerNotifier();
+      final localDataSource = ref.watch(musicLocalDataSourceProvider);
+      return AudioPlayerNotifier(localDataSource: localDataSource);
     });
 
 class AudioPlayerState {
@@ -54,13 +56,20 @@ class AudioPlayerState {
 
 class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   AudioPlayer? _player;
-  final MusicLocalDataSource _localDataSource = MusicLocalDataSource();
+  final MusicLocalDataSource _localDataSource;
 
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
 
-  AudioPlayerNotifier() : super(const AudioPlayerState()) {
+  int _playSessionId = 0;
+  bool _isSettingSource = false;
+  bool _shouldPlayOnLoad = true;
+  int? _lastCompletedIndex;
+
+  AudioPlayerNotifier({required MusicLocalDataSource localDataSource})
+    : _localDataSource = localDataSource,
+      super(const AudioPlayerState()) {
     if (_isAudioSupported) {
       _player = AudioPlayer();
       _listenToPlayer();
@@ -88,7 +97,14 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     });
 
     _playerStateSubscription = player.playerStateStream.listen((playerState) {
-      state = state.copyWith(isPlaying: playerState.playing);
+      if (!_isSettingSource) {
+        final isBuffering =
+            playerState.processingState == ProcessingState.buffering;
+        state = state.copyWith(
+          isPlaying: playerState.playing,
+          isLoading: isBuffering,
+        );
+      }
 
       if (playerState.processingState == ProcessingState.completed) {
         _playNextAutomatically();
@@ -101,74 +117,104 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       return;
     }
 
+    final sessionId = ++_playSessionId;
+    _isSettingSource = true;
+    _shouldPlayOnLoad = true;
+    _lastCompletedIndex = null;
+
+    final tracks = playlist ?? state.tracks;
+    int index = tracks.indexWhere((item) => item.id == track.id);
+    if (index == -1) index = 0;
+
+    // Optimistically update track info and immediately show playing state
+    state = state.copyWith(
+      tracks: tracks,
+      currentIndex: index,
+      currentTrack: track,
+      isLoading: true,
+      isPlaying: true,
+      position: Duration.zero,
+      duration: Duration.zero,
+    );
+
+    final player = _player;
+    if (player == null) {
+      _isSettingSource = false;
+      state = state.copyWith(isLoading: false, isPlaying: false);
+      return;
+    }
+
     try {
-      await _localDataSource.init();
+      // 1. Check if audio is already cached
+      final cachedAudio = _localDataSource.getCachedAudio(track.audio);
 
-      final tracks = playlist ?? state.tracks;
+      if (sessionId != _playSessionId) return;
 
-      int index = tracks.indexWhere((item) => item.id == track.id);
-
-      if (index == -1) {
-        index = 0;
-      }
-
-      state = state.copyWith(
-        tracks: tracks,
-        currentIndex: index,
-        currentTrack: track,
-        isLoading: true,
-        isPlaying: false,
-        position: Duration.zero,
-        duration: Duration.zero,
-      );
-
-      final player = _player;
-      if (player == null) {
-        state = state.copyWith(isLoading: false);
-        return;
-      }
-
-      await player.stop();
-
-      final audio =
-          _localDataSource.getCachedAudio(track.audio) ??
-          await _localDataSource.cacheAudio(track.audio);
-
-      if (audio != null) {
+      if (cachedAudio != null) {
         try {
-          await player.setAudioSource(_CachedAudioSource(audio));
-          await player.play();
+          await player.setAudioSource(_CachedAudioSource(cachedAudio));
         } catch (_) {
+          if (sessionId != _playSessionId) return;
           await player.setUrl(track.audio);
-          await player.play();
         }
       } else {
+        // 2. Not cached: Start playing from URL immediately
         await player.setUrl(track.audio);
-        await player.play();
+
+        // Cache in background for future offline / instant playback
+        unawaited(_localDataSource.cacheAudio(track.audio));
       }
 
-      state = state.copyWith(isLoading: false, isPlaying: true);
+      if (sessionId != _playSessionId) return;
+
+      _isSettingSource = false;
+
+      if (_shouldPlayOnLoad) {
+        unawaited(player.play());
+        state = state.copyWith(isLoading: false, isPlaying: true);
+      } else {
+        await player.pause();
+        state = state.copyWith(isLoading: false, isPlaying: false);
+      }
+
+      // Prefetch next track in background for instant switching
+      final nextIdx = index + 1;
+      if (nextIdx < tracks.length && tracks[nextIdx].audio.isNotEmpty) {
+        unawaited(_localDataSource.cacheAudio(tracks[nextIdx].audio));
+      }
     } catch (e) {
+      if (sessionId != _playSessionId) return;
+
+      _isSettingSource = false;
       state = state.copyWith(isLoading: false, isPlaying: false);
     }
   }
 
   Future<void> playPause() async {
-    if (state.currentTrack == null || state.isLoading) {
+    if (state.currentTrack == null) {
       return;
     }
 
-    try {
-      final player = _player;
-      if (player == null) return;
+    // If currently switching or loading track, safely toggle playback intent without aborting native load
+    if (_isSettingSource) {
+      _shouldPlayOnLoad = !_shouldPlayOnLoad;
+      state = state.copyWith(isPlaying: _shouldPlayOnLoad);
+      return;
+    }
 
+    final player = _player;
+    if (player == null) return;
+
+    try {
       if (player.playing) {
+        state = state.copyWith(isPlaying: false);
         await player.pause();
       } else {
-        await player.play();
+        state = state.copyWith(isPlaying: true);
+        unawaited(player.play());
       }
     } catch (e) {
-      // Error handling can be added here if needed
+      state = state.copyWith(isPlaying: player.playing);
     }
   }
 
@@ -194,7 +240,9 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     // If the song has played for more than 3 seconds,
     // pressing previous restarts the current song.
     if (state.position.inSeconds > 3) {
-      await _player?.seek(Duration.zero);
+      if (!_isSettingSource) {
+        await _player?.seek(Duration.zero);
+      }
       return;
     }
 
@@ -208,7 +256,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   }
 
   Future<void> _playNextAutomatically() async {
-    if (state.tracks.isEmpty) {
+    if (state.tracks.isEmpty || _isSettingSource) {
       return;
     }
 
@@ -219,14 +267,22 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
       return;
     }
 
+    if (_lastCompletedIndex == state.currentIndex) {
+      return;
+    }
+    _lastCompletedIndex = state.currentIndex;
+
     await playTrack(state.tracks[nextIndex], playlist: state.tracks);
   }
 
   Future<void> seek(Duration position) async {
+    if (_isSettingSource) return;
     await _player?.seek(position);
   }
 
   Future<void> stop() async {
+    _isSettingSource = false;
+    _playSessionId++;
     await _player?.stop();
 
     state = state.copyWith(isPlaying: false, position: Duration.zero);
@@ -251,8 +307,8 @@ class _CachedAudioSource extends StreamAudioSource {
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
-    final rangeStart = start ?? 0;
-    final rangeEnd = end ?? audio.length;
+    final rangeStart = (start ?? 0).clamp(0, audio.length);
+    final rangeEnd = (end ?? audio.length).clamp(rangeStart, audio.length);
 
     return StreamAudioResponse(
       contentType: 'audio/mpeg',
