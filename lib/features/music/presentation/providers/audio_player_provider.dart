@@ -57,7 +57,6 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   StreamSubscription<Duration>? _positionSubscription;
   StreamSubscription<Duration?>? _durationSubscription;
   StreamSubscription<PlayerState>? _playerStateSubscription;
-  StreamSubscription<PlayerState>? _completionSubscription;
 
   AudioPlayerNotifier() : super(const AudioPlayerState()) {
     _listenToPlayer();
@@ -74,9 +73,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
     _playerStateSubscription = _player.playerStateStream.listen((playerState) {
       state = state.copyWith(isPlaying: playerState.playing);
-    });
 
-    _completionSubscription = _player.playerStateStream.listen((playerState) {
       if (playerState.processingState == ProcessingState.completed) {
         _playNextAutomatically();
       }
@@ -84,7 +81,8 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   }
 
   Future<void> playTrack(Track track, {List<Track>? playlist}) async {
-    if (state.isLoading) {
+    if (track.audio.isEmpty) {
+      debugPrint('Audio URL is empty for: ${track.name}');
       return;
     }
 
@@ -111,9 +109,9 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
 
       await _player.setUrl(track.audio);
 
-      state = state.copyWith(isLoading: false);
-
       await _player.play();
+
+      state = state.copyWith(isLoading: false, isPlaying: true);
     } catch (e) {
       state = state.copyWith(isLoading: false, isPlaying: false);
 
@@ -122,9 +120,7 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
   }
 
   Future<void> playPause() async {
-    final track = state.currentTrack;
-
-    if (track == null || state.isLoading) {
+    if (state.currentTrack == null || state.isLoading) {
       return;
     }
 
@@ -204,7 +200,6 @@ class AudioPlayerNotifier extends StateNotifier<AudioPlayerState> {
     _positionSubscription?.cancel();
     _durationSubscription?.cancel();
     _playerStateSubscription?.cancel();
-    _completionSubscription?.cancel();
 
     _player.dispose();
 
