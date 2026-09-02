@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tuneflow/features/music/domain/entities/track.dart';
 import 'package:tuneflow/features/music/presentation/providers/audio_player_provider.dart';
+import 'package:tuneflow/features/music/presentation/screens/playing_screen.dart';
 import 'package:tuneflow/features/music/presentation/widgets/mini_player.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../providers/music_provider.dart';
@@ -75,8 +76,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Row(
       children: [
         Container(
-          width: 42,
-          height: 42,
+          width: 50,
+          height: 50,
           decoration: BoxDecoration(
             color: AppColors.primary.withOpacity(0.15),
             borderRadius: BorderRadius.circular(12),
@@ -84,22 +85,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: const Icon(
             Icons.graphic_eq_rounded,
             color: AppColors.primary,
-            size: 24,
+            size: 40,
           ),
         ),
         const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'TuneFlow',
-              style: TextStyle(
-                color: AppColors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.2,
-              ),
-            ),
+            Image.asset('assets/nameicon.png', width: 120, height: 60),
             Text(
               'Find your next favorite track',
               style: TextStyle(
@@ -272,6 +265,10 @@ class _TrackCard extends ConsumerWidget {
           ref
               .read(audioPlayerProvider.notifier)
               .playTrack(track, playlist: playlist);
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const NowPlayingScreen()),
+          );
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 3),

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:tuneflow/core/constants/app_config.dart';
+import 'package:tuneflow/features/music/data/datasources/music_local_data_source.dart';
 import 'package:tuneflow/features/music/data/datasources/music_source.dart';
 import 'package:tuneflow/features/music/domain/repositories/music_repository_impl.dart';
 import 'dart:async';
@@ -16,9 +17,14 @@ final musicRemoteDataSourceProvider = Provider<MusicRemoteDataSource>((ref) {
   return MusicRemoteDataSource(dioClient: ref.read(dioClientProvider));
 });
 
+final musicLocalDataSourceProvider = Provider<MusicLocalDataSource>((ref) {
+  return MusicLocalDataSource();
+});
+
 final musicRepositoryProvider = Provider<MusicRepository>((ref) {
   return MusicRepositoryImpl(
     remoteDataSource: ref.read(musicRemoteDataSourceProvider),
+    localDataSource: ref.read(musicLocalDataSourceProvider),
   );
 });
 

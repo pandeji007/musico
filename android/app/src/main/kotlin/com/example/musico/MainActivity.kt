@@ -1,4 +1,4 @@
-package com.example.tuneflow
+package com.example.musico
 
 import io.flutter.embedding.android.FlutterActivity
 
